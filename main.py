@@ -1,11 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 app=FastAPI(title="Tasks API")
 from pydantic import BaseModel, Field
 
 
 class createTask(BaseModel):
-   title:str =Field(min)
+   title:str = Field(min_length=1, max_length=200)
    done: bool = False
 
 class Task(createTask):
@@ -33,3 +33,12 @@ def create_task(body:createTask)->Task:
 @app.get("/tasks")
 def list_tasks() -> list[Task]:
      return list(tasks.values())
+
+
+
+@app.get("/tasks/{task_id}")
+def get_task(task_id: int) -> Task:
+    task=tasks.get(task_id)
+    if task is None:
+      raise HTTPException(status_code=404,detail="task not found")
+    return task
