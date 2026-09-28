@@ -10,7 +10,10 @@ class createTask(BaseModel):
 
 class Task(createTask):
     id:int
-    
+
+class TaskUpdate(BaseModel):  
+  title: str | None = Field(default=None, min_length=1, max_length=200)
+  done: bool | None = None
 
 
    
@@ -42,3 +45,18 @@ def get_task(task_id: int) -> Task:
     if task is None:
       raise HTTPException(status_code=404,detail="task not found")
     return task
+
+
+
+@app.patch("/tasks/{task_id}")
+def update_task(task_id: int, body: TaskUpdate) -> Task:
+    task= get_task(task_id)
+    changes=body.model_dump(exclude_unset=True)
+    tasks[task_id]=task.model_copy(update=changes)
+    return tasks[task_id]
+
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int) -> None:
+    get_task(task_id)
+    del tasks[task_id]
