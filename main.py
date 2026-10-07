@@ -1,15 +1,26 @@
-from fastapi import FastAPI, HTTPException
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from db import get_db
+from models import TaskRow
+
+DbSession = Annotated[Session, Depends(get_db)]
 
 app = FastAPI(title="Tasks API")
-from pydantic import BaseModel, Field
 
 
-class createTask(BaseModel):
+
+class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     done: bool = False
 
 
-class Task(createTask):
+class Task(TaskCreate):
+    model_config = ConfigDict(from_attributes=True)
     id: int
 
 
@@ -28,17 +39,18 @@ next_id = 1
 
 
 @app.post("/tasks", status_code=201)
-def create_task(body: createTask) -> Task:
-    global next_id
-    task = Task(id=next_id, **body.model_dump())
-    tasks[task.id] = task
-    next_id += 1
-    return task
+def create_task(body: TaskCreate, db: DbSession) -> Task:
+    row = TaskRow(**body.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return Task.model_validate(row)
 
 
 @app.get("/tasks")
-def list_tasks() -> list[Task]:
-    return list(tasks.values())
+def list_tasks(db: DbSession) -> list[Task]:
+    rows = db.scalars(select(TaskRow).order_by(TaskRow.id))
+    return [Task.model_validate(row) for row in rows]
 
 
 @app.get("/tasks/{task_id}")
