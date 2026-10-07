@@ -34,8 +34,6 @@ def hello() -> dict[str, str]:
     return {"message": "hello"}
 
 
-tasks: dict[str, Task] = {}
-next_id = 1
 
 
 @app.post("/tasks", status_code=201)
@@ -53,23 +51,30 @@ def list_tasks(db: DbSession) -> list[Task]:
     return [Task.model_validate(row) for row in rows]
 
 
-@app.get("/tasks/{task_id}")
-def get_task(task_id: int) -> Task:
-    task = tasks.get(task_id)
-    if task is None:
+
+def find_task(db: Session, task_id: int) -> TaskRow:
+    row = db.get(TaskRow, task_id)
+    if row is None:
         raise HTTPException(status_code=404, detail="task not found")
-    return task
+    return row
+
+@app.get("/tasks/{task_id}")
+def get_task(task_id: int, db: DbSession) -> Task:
+    return Task.model_validate(find_task(db, task_id))
+
+
 
 
 @app.patch("/tasks/{task_id}")
-def update_task(task_id: int, body: TaskUpdate) -> Task:
-    task = get_task(task_id)
-    changes = body.model_dump(exclude_unset=True)
-    tasks[task_id] = task.model_copy(update=changes)
-    return tasks[task_id]
-
+def update_task(task_id: int, body: TaskUpdate, db: DbSession) -> Task:
+    row = find_task(db, task_id)
+    for name, value in body.model_dump(exclude_unset=True).items():
+        setattr(row, name, value)
+    db.commit()
+    db.refresh(row)
+    return Task.model_validate(row)
 
 @app.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: int) -> None:
-    get_task(task_id)
-    del tasks[task_id]
+def delete_task(task_id: int, db: DbSession) -> None:
+    db.delete(find_task(db, task_id))
+    db.commit()
