@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import TaskRow
+from models import ProjectRow, TaskRow
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -17,7 +17,7 @@ app = FastAPI(title="Tasks API")
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     done: bool = False
-
+    project_id: int | None = None
 
 class Task(TaskCreate):
     model_config = ConfigDict(from_attributes=True)
@@ -38,6 +38,8 @@ def hello() -> dict[str, str]:
 
 @app.post("/tasks", status_code=201)
 def create_task(body: TaskCreate, db: DbSession) -> Task:
+    if body.project_id is not None:
+       find_project(db, body.project_id)
     row = TaskRow(**body.model_dump())
     db.add(row)
     db.commit()
@@ -78,3 +80,46 @@ def update_task(task_id: int, body: TaskUpdate, db: DbSession) -> Task:
 def delete_task(task_id: int, db: DbSession) -> None:
     db.delete(find_task(db, task_id))
     db.commit()
+
+
+
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class Project(ProjectCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+
+
+def find_project(db: Session, project_id: int) -> ProjectRow:
+    row = db.get(ProjectRow, project_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    return row
+
+
+@app.post("/projects", status_code=201)
+def create_project(body: ProjectCreate, db: DbSession) -> Project:
+    row = ProjectRow(**body.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return Project.model_validate(row)
+
+
+@app.get("/projects")
+def list_projects(db: DbSession) -> list[Project]:
+    rows = db.scalars(select(ProjectRow).order_by(ProjectRow.id))
+    return [Project.model_validate(row) for row in rows]
+
+
+@app.get("/projects/{project_id}/tasks")
+def list_project_tasks(project_id: int, db: DbSession) -> list[Task]:
+    project = find_project(db, project_id)
+    return [Task.model_validate(row) for row in project.tasks]
+
+
