@@ -13,11 +13,11 @@ DbSession = Annotated[Session, Depends(get_db)]
 app = FastAPI(title="Tasks API")
 
 
-
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     done: bool = False
     project_id: int | None = None
+
 
 class Task(TaskCreate):
     model_config = ConfigDict(from_attributes=True)
@@ -34,12 +34,10 @@ def hello() -> dict[str, str]:
     return {"message": "hello"}
 
 
-
-
 @app.post("/tasks", status_code=201)
 def create_task(body: TaskCreate, db: DbSession) -> Task:
     if body.project_id is not None:
-       find_project(db, body.project_id)
+        find_project(db, body.project_id)
     row = TaskRow(**body.model_dump())
     db.add(row)
     db.commit()
@@ -59,18 +57,16 @@ def list_tasks(
     return [Task.model_validate(row) for row in db.scalars(stmt)]
 
 
-
 def find_task(db: Session, task_id: int) -> TaskRow:
     row = db.get(TaskRow, task_id)
     if row is None:
         raise HTTPException(status_code=404, detail="task not found")
     return row
 
+
 @app.get("/tasks/{task_id}")
 def get_task(task_id: int, db: DbSession) -> Task:
     return Task.model_validate(find_task(db, task_id))
-
-
 
 
 @app.patch("/tasks/{task_id}")
@@ -82,13 +78,11 @@ def update_task(task_id: int, body: TaskUpdate, db: DbSession) -> Task:
     db.refresh(row)
     return Task.model_validate(row)
 
+
 @app.delete("/tasks/{task_id}", status_code=204)
 def delete_task(task_id: int, db: DbSession) -> None:
     db.delete(find_task(db, task_id))
     db.commit()
-
-
-
 
 
 class ProjectCreate(BaseModel):
@@ -127,5 +121,3 @@ def list_projects(db: DbSession) -> list[Project]:
 def list_project_tasks(project_id: int, db: DbSession) -> list[Task]:
     project = find_project(db, project_id)
     return [Task.model_validate(row) for row in project.tasks]
-
-

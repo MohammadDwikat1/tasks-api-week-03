@@ -16,10 +16,9 @@ class TaskRow(Base):
     project: Mapped["ProjectRow | None"] = relationship(back_populates="tasks")
 
 
-
 class ProjectRow(Base):
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
-    tasks: Mapped[list["TaskRow"]] = relationship(back_populates="project")    
+    tasks: Mapped[list["TaskRow"]] = relationship(back_populates="project")
